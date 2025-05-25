@@ -2,7 +2,7 @@ const AWS = require('aws-sdk')
 
 let ssm
 
-const BASE_PATH = '/torc'
+const BASE_PATH = ''
 
 const cachedParams = {}
 
@@ -13,7 +13,20 @@ function initializeSSM() {
 }
 
 function constructParamPath(env, service, paramName) {
-  return `${BASE_PATH}/${env}/${service}${paramName?'/'+paramName:''}`
+  const aPath = []
+
+  if (env) {
+    aPath.push(env)
+  }
+
+  if (service) {
+    aPath.push(service)
+  }
+
+  const path = aPath.join('/')
+
+
+  return `${BASE_PATH}/${path}${paramName?'/'+paramName:''}`
 }
 
 function restructureParam(param) {

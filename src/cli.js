@@ -111,9 +111,9 @@ async function putToAWSFromFile(config) {
     param.canOverwrite = overwrite
     param.isEncrypted = encrypt
   })
-  console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/torc/${env}/${service}"`))
+  console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/${env}/${service}"`))
   const results = await configWrapper.awsManager.setParametersByService(params, env, service)
-  console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/torc/${env}/${service}"`))
+  console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/${env}/${service}"`))
 }
 async function exportAllParams(config) {
   // console.log(config)
