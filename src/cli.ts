@@ -19,6 +19,7 @@ interface Options {
   help?: boolean
   command?: string
   commandFunc?: (options: any) => Promise<void> | void
+  basepath?: string
   [key: string]: any
 }
 
@@ -34,12 +35,14 @@ function parseArgumentsIntoOptions(rawArgs: string[]): Options {
     '--overwrite': Boolean,
     '--encrypt': Boolean,
     '--help': Boolean,
+    '--basepath': String,
     '-o': '--outfile',
     '-i': '--infile',
     '-e': '--env',
     '-f': '--folder',
     '-s': '--service',
-    '-h': '--help'
+    '-h': '--help',
+    '-b': '--basepath'
    },{
     argv: rawArgs.slice(2),
     permissive: true
@@ -57,7 +60,8 @@ function parseArgumentsIntoOptions(rawArgs: string[]): Options {
     env: args['--env'],
     folder: args['--folder'] || '',
     help: args['--help'] || false,
-    command: args._[0] || ''
+    command: args._[0] || '',
+    basepath: args['--basepath'] || '',
   }
 }
 
@@ -73,23 +77,30 @@ function displayHelp(): void {
     {bold.blue * --outfile} file to save the new env vars to
     {bold.blue * --oldprefix} prefix to be replaced
     {bold.blue * --newprefix} prefix to replace with
+    {bold.blue * --basepath} optional base path for parameter operations
 {underline.green saveParamsFile:} save params to a file so that they can be loaded in another process via {italic.blue source} command
     {bold.blue * --outfile} file to save the aws env vars to
     {bold.blue * --env} aws application environment
     {bold.blue * --service} aws application service
+    {bold.blue * --basepath} optional base path for parameter operations
 {underline.green putToAWSFromFile:} save params from an env var file into AWS Parameter Store
     {bold.blue * --infile} file to read the env vars from
     {bold.blue * --env} aws application environment
     {bold.blue * --service} aws application service
     {bold.blue * --overwrite} optional flag to overwrite existing parameters
     {bold.blue * --encrypt} optional flag to encrypt the parameters
+    {bold.blue * --basepath} optional base path for parameter operations
 {underline.green exportAllParams:} export all parameters from AWS Parameter Store to hierarchical folders
     {bold.blue * --folder} folder to save parameters to
     {bold.blue * --env} optional aws application environment
+    {bold.blue * --basepath} optional base path for parameter operations
 `)
 }
 
 async function remapKeysInEnv(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   console.log(chalk.green('Remapping keys in env'))
   const params = envLoader.remapKeysInEnv(config.oldprefix ?? '', config.newprefix ?? '')
   console.log(chalk.green(`Saving ${params.length} parameters to ${config.outfile}`))
@@ -98,6 +109,9 @@ async function remapKeysInEnv(config: Options): Promise<void> {
 }
 
 async function saveParamsFile(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   console.log(chalk.green('Saving params file'))
   const path = awsManager.constructParamPath(config.env ?? '', config.service ?? '')
   console.log(chalk.green(`saving '${path}' out to ${config.outfile}`))
@@ -118,6 +132,9 @@ async function saveParamsFile(config: Options): Promise<void> {
 }
 
 async function putToAWSFromFile(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   const { env, service, overwrite, encrypt } = config
   const infile = config?.infile || '.env'
   console.log(chalk.green(`Reading params from file: ${infile}`))
@@ -130,8 +147,11 @@ async function putToAWSFromFile(config: Options): Promise<void> {
   const results = await awsManager.setParametersByService(params, env ?? '', service ?? '')
   console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/${env ?? ''}/${service ?? ''}"`))
 }
+
 async function exportAllParams(config: Options): Promise<void> {
-  // console.log(config)
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   const rootFolder = config?.folder || './params'
   await fs.mkdir(rootFolder, { recursive: true })
   let params: { [key: string]: any } = {}
@@ -208,6 +228,15 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           default: '',
         })
       }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: '',
+        })
+      }
       break
     }
     case 'saveParamsFile': {
@@ -235,6 +264,15 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'service',
           message: 'Service: ',
+          default: '',
+        })
+      }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
           default: '',
         })
       }
@@ -268,6 +306,15 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           default: '',
         })
       }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: '',
+        })
+      }
       break
     }
     case 'exportAllParams': {
@@ -278,6 +325,15 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           name: 'folder',
           message: 'Folder: ',
           default: './params',
+        })
+      }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: '',
         })
       }
       break
@@ -298,6 +354,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
     source: options.source || answers.source,
     service: options.service || answers.service,
     env: options.env || answers.env,
+    basepath: options.basepath || answers.basepath,
     commandFunc
   }
 }
