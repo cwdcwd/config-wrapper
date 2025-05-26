@@ -1,20 +1,23 @@
-const events = require('events')
-const fs = require('fs')
-const fsp = require('fs').promises
-const readline = require('readline')
+import events from 'events'
+import fs from 'fs'
+import fsp from 'fs/promises'
+import readline from 'readline'
 
-async function readEnvFile(filename) {
-  const aParams = []
+export interface EnvParam {
+  key: string
+  value: string
+  [key: string]: any
+}
+
+export async function readEnvFile(filename: string): Promise<EnvParam[]> {
+  const aParams: EnvParam[] = []
 
   const rl = readline.createInterface({
     input: fs.createReadStream(filename),
   })
 
-  rl.on('line', (line) => {
-    // console.log(line)
+  rl.on('line', (line: string) => {
     const aLine = line.split('=')
-    // console.log(aLine)
-
     if (aLine.length === 2) {
       aParams.push({
         key: aLine[0],
@@ -28,14 +31,14 @@ async function readEnvFile(filename) {
   return aParams
 }
 
-function loadParamsIntoEnv(params) {
+export function loadParamsIntoEnv(params: EnvParam[]): void {
   params.forEach((param) => {
     process.env[param.key] = param.value
   })
 }
 
-function remapKeys(params, prefix, newPrefix) {
-  const aParams = []
+export function remapKeys(params: EnvParam[], prefix: string, newPrefix: string): EnvParam[] {
+  const aParams: EnvParam[] = []
 
   for (let i = 0; i < params.length; i++) {
     const param = params[i]
@@ -54,14 +57,14 @@ function remapKeys(params, prefix, newPrefix) {
   return aParams
 }
 
-function remapKeysInEnv(prefix, newPrefix, params) {
-  if (!params) { //CWD -- if no params given then load from current env
+export function remapKeysInEnv(prefix: string, newPrefix: string, params?: EnvParam[]): EnvParam[] {
+  if (!params) {
     params = []
     console.log('loading params from current env')
-    for (key in process.env) {
+    for (const key in process.env) {
       params.push({
         key: key,
-        value: process.env[key]
+        value: process.env[key] as string
       })
     }
   }
@@ -70,14 +73,13 @@ function remapKeysInEnv(prefix, newPrefix, params) {
   return newParams
 }
 
-async function loadFileIntoEnv(filename) {
+export async function loadFileIntoEnv(filename: string): Promise<void> {
   const params = await readEnvFile(filename)
-
   loadParamsIntoEnv(params)
 }
 
-async function paramsToSourceFile(params, filename) {
-  const aParams = []
+export async function paramsToSourceFile(params: EnvParam[], filename: string): Promise<string> {
+  const aParams: string[] = []
 
   params.forEach((param) => {
     aParams.push(`${param.key}=${param.value}`)
@@ -86,13 +88,4 @@ async function paramsToSourceFile(params, filename) {
   const paramsToString = aParams.join('\n')
   await fsp.writeFile(filename, paramsToString)
   return paramsToString
-}
-
-module.exports = {
-  readEnvFile,
-  loadParamsIntoEnv,
-  remapKeys,
-  remapKeysInEnv,
-  loadFileIntoEnv,
-  paramsToSourceFile
 }

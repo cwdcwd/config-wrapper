@@ -1,14 +1,28 @@
-const fs = require('fs/promises')
-const arg = require('arg')
-const inquirer = require('inquirer')
-const chalk = require('chalk')
+import fs from 'fs/promises'
+import arg from 'arg'
+import inquirer from 'inquirer'
+import chalk from 'chalk'
 
-let pkg = require('../package.json');
-const configWrapper = require('./index');
-const { mkdir } = require('fs');
+import pkg from '../package.json'
+import { envLoader, awsManager }  from './index'
 
+interface Options {
+  outfile?: string
+  infile?: string
+  oldprefix?: string
+  newprefix?: string
+  service?: string
+  overwrite?: boolean
+  encrypt?: boolean
+  env?: string
+  folder?: string
+  help?: boolean
+  command?: string
+  commandFunc?: (options: any) => Promise<void> | void
+  [key: string]: any
+}
 
-function parseArgumentsIntoOptions(rawArgs) {
+function parseArgumentsIntoOptions(rawArgs: string[]): Options {
   const args = arg({
     '--outfile': String,
     '--infile': String,
@@ -47,7 +61,7 @@ function parseArgumentsIntoOptions(rawArgs) {
   }
 }
 
-function displayHelp() {
+function displayHelp(): void {
   console.log(chalk.green.bgRed.bold('HJAAALP!'))
 /*
 {underline.green loadParamsIntoEnv:} load up parameters into the current process environment as env vars
@@ -75,19 +89,19 @@ function displayHelp() {
 `)
 }
 
-async function remapKeysInEnv(config) {
+async function remapKeysInEnv(config: Options): Promise<void> {
   console.log(chalk.green('Remapping keys in env'))
-  const params = configWrapper.envLoader.remapKeysInEnv(config.oldprefix, config.newprefix)
+  const params = envLoader.remapKeysInEnv(config.oldprefix ?? '', config.newprefix ?? '')
   console.log(chalk.green(`Saving ${params.length} parameters to ${config.outfile}`))
-  configWrapper.envLoader.paramsToSourceFile(params, config.outfile)
+  await envLoader.paramsToSourceFile(params, config.outfile ?? '.env')
   console.log(chalk.green(`Saved ${params.length} parameters to ${config.outfile}`))
 }
 
-async function saveParamsFile(config) {
+async function saveParamsFile(config: Options): Promise<void> {
   console.log(chalk.green('Saving params file'))
-  const path = configWrapper.awsManager.constructParamPath(config.env, config.service)
+  const path = awsManager.constructParamPath(config.env ?? '', config.service ?? '')
   console.log(chalk.green(`saving '${path}' out to ${config.outfile}`))
-  const results = await configWrapper.awsManager.getParametersByService(config.env, config.service, true)
+  const results = await awsManager.getParametersByService(config.env ?? '', config.service ?? '', true)
 
   if (Object.keys(results)?.length > 0) {
     const params = Object.keys(results).map((key) => {
@@ -95,7 +109,7 @@ async function saveParamsFile(config) {
       return { key: param.name, value: param.value }
     })
 
-    configWrapper.envLoader.paramsToSourceFile(params, config.outfile)
+    await envLoader.paramsToSourceFile(params, config.outfile ?? '.env')
     console.log(chalk.green(`Saved ${Object.keys(results).length} parameters to ${config.outfile}`))
   } else {
     console.log(chalk.red('No parameters found'))
@@ -103,24 +117,25 @@ async function saveParamsFile(config) {
   }
 }
 
-async function putToAWSFromFile(config) {
-  const { infile, env, service, overwrite, encrypt } = config
+async function putToAWSFromFile(config: Options): Promise<void> {
+  const { env, service, overwrite, encrypt } = config
+  const infile = config?.infile || '.env'
   console.log(chalk.green(`Reading params from file: ${infile}`))
-  const params = await configWrapper.envLoader.readEnvFile(infile)
+  const params = await envLoader.readEnvFile(infile)
   params.forEach((param) => {
     param.canOverwrite = overwrite
     param.isEncrypted = encrypt
   })
-  console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/${env}/${service}"`))
-  const results = await configWrapper.awsManager.setParametersByService(params, env, service)
-  console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/${env}/${service}"`))
+  console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/${env ?? ''}/${service ?? ''}"`))
+  const results = await awsManager.setParametersByService(params, env ?? '', service ?? '')
+  console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/${env ?? ''}/${service ?? ''}"`))
 }
-async function exportAllParams(config) {
+async function exportAllParams(config: Options): Promise<void> {
   // console.log(config)
   const rootFolder = config?.folder || './params'
   await fs.mkdir(rootFolder, { recursive: true })
-  let params = {}
-  const allParams = await configWrapper.awsManager.getAllOrgParams(true)
+  let params: { [key: string]: any } = {}
+  const allParams: { [key: string]: any } = await awsManager.getAllOrgParams(true)
 
   if (config?.env) {
     Object.keys(allParams).forEach((key) => {
@@ -158,7 +173,7 @@ async function exportAllParams(config) {
   }
  }
 
-async function promptForMissingOptions(options) {
+async function promptForMissingOptions(options: Options): Promise<Options> {
   let commandFunc = null
 
   const questions = []
@@ -284,19 +299,15 @@ async function promptForMissingOptions(options) {
     service: options.service || answers.service,
     env: options.env || answers.env,
     commandFunc
-  };
+  }
 }
 
-async function cli(args) {
+export async function cli(args: string[]): Promise<void> {
   console.log(chalk.green(`\n${pkg.name} v${pkg.version}`))
   let options = parseArgumentsIntoOptions(args)
   options = await promptForMissingOptions(options)
 
-  if (options) {
+  if (options && typeof options.commandFunc === 'function') {
     await options.commandFunc(options)
   }
-}
-
-module.exports = {
-  cli
 }

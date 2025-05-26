@@ -1,19 +1,24 @@
-const AWS = require('aws-sdk')
+import AWS from 'aws-sdk'
+import { EnvParam } from './envLoader'
 
-let ssm
+let ssm: AWS.SSM
 
-const BASE_PATH = ''
+let BASE_PATH = ''
 
-const cachedParams = {}
+export function setBasePath(path: string) {
+  BASE_PATH = path
+}
 
-function initializeSSM() {
+const cachedParams: { [key: string]: any } = {}
+
+function initializeSSM(): void {
   if (!ssm) {
     ssm = new AWS.SSM();
   }
 }
 
-function constructParamPath(env, service, paramName) {
-  const aPath = []
+export function constructParamPath(env?: string, service?: string, paramName?: string): string {
+  const aPath: string[] = []
 
   if (env) {
     aPath.push(env)
@@ -25,25 +30,27 @@ function constructParamPath(env, service, paramName) {
 
   const path = aPath.join('/')
 
-
-  return `${BASE_PATH}/${path}${paramName?'/'+paramName:''}`
+  return `${BASE_PATH}/${path}${paramName ? '/' + paramName : ''}`
 }
 
-function restructureParam(param) {
-  // console.log(`Restructuring parameter ${JSON.stringify(param)}`)
+function restructureParam(param: AWS.SSM.Parameter): any {
   const newParam = { 
-    name: param.Name.split('/').pop(), 
+    name: param.Name!.split('/').pop(), 
     fullName: param.Name,
     value: param.Value,
     version: param.Version,
     lastModifiedDate: param.LastModifiedDate,
     type: param.Type
   }
-
   return newParam
 }
 
-async function getParameter(env, service, paramName, isEncrypted) {
+export async function getParameter(
+  env: string,
+  service: string,
+  paramName: string,
+  isEncrypted?: boolean
+): Promise<any> {
   const Name = constructParamPath(env, service, paramName)
   const params = {
     Name,
@@ -53,10 +60,14 @@ async function getParameter(env, service, paramName, isEncrypted) {
   initializeSSM()
 
   const data = await ssm.getParameter(params).promise()
-  return restructureParam(data?.Parameter)
+  return restructureParam(data?.Parameter!)
 }
 
-async function getParametersByService(env, service, isEncrypted) {
+export async function getParametersByService(
+  env: string,
+  service: string,
+  isEncrypted?: boolean
+): Promise<{ [key: string]: any }> {
   const Path = constructParamPath(env, service)
   console.log(`Getting parameters from ${Path}`)
 
@@ -65,22 +76,22 @@ async function getParametersByService(env, service, isEncrypted) {
     return cachedParams[Path]
   }
 
-  var config = {
+  const config: AWS.SSM.GetParametersByPathRequest = {
     Path,
     Recursive: true,
     WithDecryption: isEncrypted
   };
 
-  const convertedParams = {}
-  let nextToken = null
+  const convertedParams: { [key: string]: any } = {}
+  let nextToken: string | undefined = undefined
 
   initializeSSM()
 
   do {
     let params = await ssm.getParametersByPath(config).promise()
 
-    for (let i = 0; i < params.Parameters.length; i++) {
-      const param = restructureParam(params.Parameters[i])
+    for (let i = 0; i < params.Parameters!.length; i++) {
+      const param = restructureParam(params.Parameters![i])
       convertedParams[param.name] = param
     }
 
@@ -93,19 +104,21 @@ async function getParametersByService(env, service, isEncrypted) {
   return convertedParams
 }
 
-// TODO: add param caching 
-// TODO: add support for labels
-
-async function setParameter(param, env, service, isEncrypted, canOverwrite) {
+export async function setParameter(
+  param: EnvParam,
+  env: string,
+  service: string,
+  isEncrypted?: boolean,
+  canOverwrite?: boolean
+): Promise<AWS.SSM.PutParameterResult> {
   const Name = constructParamPath(env, service, param.key)
   const Value = param.value
-  const params = {
+  const params: AWS.SSM.PutParameterRequest = {
     Name,
     Value,
     Type: isEncrypted ? 'SecureString' : 'String',
     Overwrite: canOverwrite
   };
-// console.log(`Setting parameter ${Name} = ${Value}`)
   initializeSSM()
 
   const data = await ssm.putParameter(params).promise()
@@ -113,9 +126,12 @@ async function setParameter(param, env, service, isEncrypted, canOverwrite) {
   return data
 }
 
-async function setParametersByService(params, env, service) {
-  // console.log(`Setting parameters ${JSON.stringify(params)}`)
-  const data = [] 
+export async function setParametersByService(
+  params: EnvParam[],
+  env: string,
+  service: string
+): Promise<any[]> {
+  const data: any[] = [] 
 
   for (let i = 0; i < params.length; i++) {
     const result = setParameter(params[i], env, service, params[i]?.isEncrypted, params[i]?.canOverwrite)
@@ -125,26 +141,26 @@ async function setParametersByService(params, env, service) {
   return data
 }
 
-async function getEnvironments() {
+export async function getEnvironments(): Promise<{ [env: string]: number }> {
   console.log(`Getting environments descending from ${BASE_PATH}`)
-  var config = {
+  const config: AWS.SSM.GetParametersByPathRequest = {
     Path: BASE_PATH,
     Recursive: true
   };
 
-  const envs = {}
-  let nextToken = null
+  const envs: { [env: string]: number } = {}
+  let nextToken: string | undefined = undefined
 
   initializeSSM()
 
   do {
     let params = await ssm.getParametersByPath(config).promise()
 
-    for (let i = 0; i < params.Parameters.length; i++) {
-      const param = params.Parameters[i]
-      const name = param.Name.split('/')
+    for (let i = 0; i < params.Parameters!.length; i++) {
+      const param = params.Parameters![i]
+      const name = param.Name!.split('/')
       const env = name[2]
-      envs[env] = envs[env]? envs[env]+1 : 1
+      envs[env] = envs[env] ? envs[env] + 1 : 1
     }
 
     params = await ssm.getParametersByPath(config).promise()
@@ -155,25 +171,25 @@ async function getEnvironments() {
   return envs
 }
 
-async function getServicesForEnvironment(env) {
+export async function getServicesForEnvironment(env: string): Promise<{ [svc: string]: number }> {
   const Path = BASE_PATH + '/' + env
   console.log(`Getting services descending from the environment ${Path}`)
-  var config = {
+  const config: AWS.SSM.GetParametersByPathRequest = {
     Path,
     Recursive: true
   };
 
-  const svcs = {}
-  let nextToken = null
+  const svcs: { [svc: string]: number } = {}
+  let nextToken: string | undefined = undefined
 
   initializeSSM()
 
   do {
     let params = await ssm.getParametersByPath(config).promise()
 
-    for (let i = 0; i < params.Parameters.length; i++) {
-      const param = params.Parameters[i]
-      const name = param.Name.split('/')
+    for (let i = 0; i < params.Parameters!.length; i++) {
+      const param = params.Parameters![i]
+      const name = param.Name!.split('/')
       const svc = name[3]
       svcs[svc] = svcs[svc] ? svcs[svc] + 1 : 1
     }
@@ -186,25 +202,25 @@ async function getServicesForEnvironment(env) {
   return svcs
 }
 
-async function getAllOrgParams(isEncrypted) {
+export async function getAllOrgParams(isEncrypted?: boolean): Promise<any> {
   console.log(`Getting all parameters under ${BASE_PATH}`)
-  var config = {
+  const config: AWS.SSM.GetParametersByPathRequest = {
     Path: BASE_PATH,
     Recursive: true,
     WithDecryption: isEncrypted
   };
 
-  const convertedParams = {}
-  let nextToken = null
+  const convertedParams: any = {}
+  let nextToken: string | undefined = undefined
 
   initializeSSM()
 
   do {
     let params = await ssm.getParametersByPath(config).promise()
 
-    for (let i = 0; i < params.Parameters.length; i++) {
-      const param = restructureParam(params.Parameters[i])
-      const name = params.Parameters[i].Name.split('/')
+    for (let i = 0; i < params.Parameters!.length; i++) {
+      const param = restructureParam(params.Parameters![i])
+      const name = params.Parameters![i].Name!.split('/')
 
       if (!convertedParams[name[2]]) {
         convertedParams[name[2]] = {}
@@ -223,15 +239,4 @@ async function getAllOrgParams(isEncrypted) {
   } while (nextToken)
 
   return convertedParams
-}
-
-module.exports = {
-  constructParamPath,
-  getParameter,
-  getParametersByService,
-  setParameter,
-  setParametersByService,
-  getEnvironments,
-  getServicesForEnvironment,
-  getAllOrgParams
 }
