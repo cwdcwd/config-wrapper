@@ -120,7 +120,8 @@ async function saveParamsFile(config: Options): Promise<void> {
   if (Object.keys(results)?.length > 0) {
     const params = Object.keys(results).map((key) => {
       const param = results[key]
-      return { key: param.name, value: param.value }
+      
+      return { key: param.name, value: param.value, isEncrypted: param.isEncrypted }
     })
 
     await envLoader.paramsToSourceFile(params, config.outfile ?? '.env')
@@ -255,7 +256,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'env',
           message: 'Environment: ',
-          default: 'dev',
+          default: undefined,
         })
       }
 
@@ -294,7 +295,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'env',
           message: 'Environment: ',
-          default: 'dev',
+          default: undefined,
         })
       }
 

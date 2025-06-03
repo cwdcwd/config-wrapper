@@ -6,7 +6,7 @@ describe('envLoader', () => {
   const params = [
     { key: 'key01', value: 'value01' },
     { key: 'key02', value: 'value02' },
-    { key: 'key03', value: 'value03' }
+    { key: 'key03', value: 'value03', isEncrypted: true }
   ]
 
   describe('paramsToSourceFile', () => {

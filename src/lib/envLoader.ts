@@ -7,6 +7,7 @@ export interface EnvParam {
   key: string
   value: string
   [key: string]: any
+  isEncrypted?: boolean 
 }
 
 export async function readEnvFile(filename: string): Promise<EnvParam[]> {
@@ -19,9 +20,14 @@ export async function readEnvFile(filename: string): Promise<EnvParam[]> {
   rl.on('line', (line: string) => {
     const aLine = line.split('=')
     if (aLine.length === 2) {
+      const key = aLine[0].trim()
+      const valuePortion = aLine[1].split('#')
+      const value = valuePortion[0].trim() // Remove comments if any
+      const isEncrypted = valuePortion[1] ? valuePortion[1].trim().toLowerCase() === 'encrypted' : false
       aParams.push({
-        key: aLine[0],
-        value: aLine[1]
+        key,
+        value,
+        isEncrypted
       })
     }
   })
@@ -82,7 +88,7 @@ export async function paramsToSourceFile(params: EnvParam[], filename: string): 
   const aParams: string[] = []
 
   params.forEach((param) => {
-    aParams.push(`${param.key}=${param.value}`)
+    aParams.push(`${param.key}=${param.value}${param.isEncrypted ? ' # encrypted' : ''}`)
   })
 
   const paramsToString = aParams.join('\n')

@@ -44,7 +44,8 @@ function restructureParam(param: AWS.SSM.Parameter): any {
     value: param.Value,
     version: param.Version,
     lastModifiedDate: param.LastModifiedDate,
-    type: param.Type
+    type: param.Type,
+    isEncrypted: param.Type === 'SecureString',
   }
   return newParam
 }
