@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import { envLoader, awsManager } from '../src/index'
-const envFile = './tests/.env'
+const envFile = './__tests__/.env'
 
 describe('envLoader', () => {
   const params = [

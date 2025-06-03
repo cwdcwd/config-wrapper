@@ -142,7 +142,7 @@ async function putToAWSFromFile(config: Options): Promise<void> {
   const params = await envLoader.readEnvFile(infile)
   params.forEach((param) => {
     param.canOverwrite = overwrite
-    param.isEncrypted = encrypt
+    param.isEncrypted = param.isEncrypted ?? encrypt
   })
   console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/${env ?? ''}/${service ?? ''}"`))
   const results = await awsManager.setParametersByService(params, env ?? '', service ?? '')
