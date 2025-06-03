@@ -234,7 +234,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'basepath',
           message: 'Base path (optional): ',
-          default: '',
+          default: undefined,
         })
       }
       break
@@ -273,7 +273,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'basepath',
           message: 'Base path (optional): ',
-          default: '',
+          default: undefined,
         })
       }
       break
@@ -312,7 +312,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'basepath',
           message: 'Base path (optional): ',
-          default: '',
+          default: undefined,
         })
       }
       break
@@ -333,7 +333,7 @@ async function promptForMissingOptions(options: Options): Promise<Options> {
           type: 'input',
           name: 'basepath',
           message: 'Base path (optional): ',
-          default: '',
+          default: undefined,
         })
       }
       break

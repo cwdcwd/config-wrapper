@@ -3,7 +3,7 @@ import { EnvParam } from './envLoader'
 
 let ssm: AWS.SSM
 
-let BASE_PATH = ''
+let BASE_PATH: string | undefined = undefined
 
 export function setBasePath(path: string) {
   BASE_PATH = path
@@ -20,6 +20,10 @@ function initializeSSM(): void {
 export function constructParamPath(env?: string, service?: string, paramName?: string): string {
   const aPath: string[] = []
 
+  if(BASE_PATH) {
+    aPath.push(BASE_PATH)
+  }
+
   if (env) {
     aPath.push(env)
   }
@@ -29,8 +33,8 @@ export function constructParamPath(env?: string, service?: string, paramName?: s
   }
 
   const path = aPath.join('/')
-
-  return `${BASE_PATH}/${path}${paramName ? '/' + paramName : ''}`
+// console.log(`Constructed parameter path: /${path}`)
+  return `/${path}${paramName ? '/' + paramName : ''}`
 }
 
 function restructureParam(param: AWS.SSM.Parameter): any {
@@ -144,7 +148,7 @@ export async function setParametersByService(
 export async function getEnvironments(): Promise<{ [env: string]: number }> {
   console.log(`Getting environments descending from ${BASE_PATH}`)
   const config: AWS.SSM.GetParametersByPathRequest = {
-    Path: BASE_PATH,
+    Path: BASE_PATH ?? '/',
     Recursive: true
   };
 
@@ -205,7 +209,7 @@ export async function getServicesForEnvironment(env: string): Promise<{ [svc: st
 export async function getAllOrgParams(isEncrypted?: boolean): Promise<any> {
   console.log(`Getting all parameters under ${BASE_PATH}`)
   const config: AWS.SSM.GetParametersByPathRequest = {
-    Path: BASE_PATH,
+    Path: BASE_PATH ?? '/',
     Recursive: true,
     WithDecryption: isEncrypted
   };
