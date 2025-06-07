@@ -236,7 +236,6 @@ export async function getAllOrgParams(isEncrypted?: boolean): Promise<any> {
       convertedParams[name[2]][name[3]][param.name] = param
     }
 
-    params = await ssm.getParametersByPath(config).promise()
     nextToken = params.NextToken
     config.NextToken = nextToken
   } while (nextToken)
