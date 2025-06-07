@@ -1,14 +1,29 @@
-const fs = require('fs/promises')
-const arg = require('arg')
-const inquirer = require('inquirer')
-const chalk = require('chalk')
+import fs from 'fs/promises'
+import arg from 'arg'
+import inquirer from 'inquirer'
+import chalk from 'chalk'
 
-let pkg = require('../package.json');
-const configWrapper = require('./index');
-const { mkdir } = require('fs');
+import pkg from '../package.json'
+import { envLoader, awsManager }  from './index'
 
+interface Options {
+  outfile?: string
+  infile?: string
+  oldprefix?: string
+  newprefix?: string
+  service?: string
+  overwrite?: boolean
+  encrypt?: boolean
+  env?: string
+  folder?: string
+  help?: boolean
+  command?: string
+  commandFunc?: (options: any) => Promise<void> | void
+  basepath?: string
+  [key: string]: any
+}
 
-function parseArgumentsIntoOptions(rawArgs) {
+function parseArgumentsIntoOptions(rawArgs: string[]): Options {
   const args = arg({
     '--outfile': String,
     '--infile': String,
@@ -20,12 +35,14 @@ function parseArgumentsIntoOptions(rawArgs) {
     '--overwrite': Boolean,
     '--encrypt': Boolean,
     '--help': Boolean,
+    '--basepath': String,
     '-o': '--outfile',
     '-i': '--infile',
     '-e': '--env',
     '-f': '--folder',
     '-s': '--service',
-    '-h': '--help'
+    '-h': '--help',
+    '-b': '--basepath'
    },{
     argv: rawArgs.slice(2),
     permissive: true
@@ -43,11 +60,12 @@ function parseArgumentsIntoOptions(rawArgs) {
     env: args['--env'],
     folder: args['--folder'] || '',
     help: args['--help'] || false,
-    command: args._[0] || ''
+    command: args._[0] || '',
+    basepath: args['--basepath'] || '',
   }
 }
 
-function displayHelp() {
+function displayHelp(): void {
   console.log(chalk.green.bgRed.bold('HJAAALP!'))
 /*
 {underline.green loadParamsIntoEnv:} load up parameters into the current process environment as env vars
@@ -59,43 +77,54 @@ function displayHelp() {
     {bold.blue * --outfile} file to save the new env vars to
     {bold.blue * --oldprefix} prefix to be replaced
     {bold.blue * --newprefix} prefix to replace with
+    {bold.blue * --basepath} optional base path for parameter operations
 {underline.green saveParamsFile:} save params to a file so that they can be loaded in another process via {italic.blue source} command
     {bold.blue * --outfile} file to save the aws env vars to
     {bold.blue * --env} aws application environment
     {bold.blue * --service} aws application service
+    {bold.blue * --basepath} optional base path for parameter operations
 {underline.green putToAWSFromFile:} save params from an env var file into AWS Parameter Store
     {bold.blue * --infile} file to read the env vars from
     {bold.blue * --env} aws application environment
     {bold.blue * --service} aws application service
     {bold.blue * --overwrite} optional flag to overwrite existing parameters
     {bold.blue * --encrypt} optional flag to encrypt the parameters
+    {bold.blue * --basepath} optional base path for parameter operations
 {underline.green exportAllParams:} export all parameters from AWS Parameter Store to hierarchical folders
     {bold.blue * --folder} folder to save parameters to
     {bold.blue * --env} optional aws application environment
+    {bold.blue * --basepath} optional base path for parameter operations
 `)
 }
 
-async function remapKeysInEnv(config) {
+async function remapKeysInEnv(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   console.log(chalk.green('Remapping keys in env'))
-  const params = configWrapper.envLoader.remapKeysInEnv(config.oldprefix, config.newprefix)
+  const params = envLoader.remapKeysInEnv(config.oldprefix ?? '', config.newprefix ?? '')
   console.log(chalk.green(`Saving ${params.length} parameters to ${config.outfile}`))
-  configWrapper.envLoader.paramsToSourceFile(params, config.outfile)
+  await envLoader.paramsToSourceFile(params, config.outfile ?? '.env')
   console.log(chalk.green(`Saved ${params.length} parameters to ${config.outfile}`))
 }
 
-async function saveParamsFile(config) {
+async function saveParamsFile(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   console.log(chalk.green('Saving params file'))
-  const path = configWrapper.awsManager.constructParamPath(config.env, config.service)
+  const path = awsManager.constructParamPath(config.env ?? '', config.service ?? '')
   console.log(chalk.green(`saving '${path}' out to ${config.outfile}`))
-  const results = await configWrapper.awsManager.getParametersByService(config.env, config.service, true)
+  const results = await awsManager.getParametersByService(config.env ?? '', config.service ?? '', true)
 
   if (Object.keys(results)?.length > 0) {
     const params = Object.keys(results).map((key) => {
       const param = results[key]
-      return { key: param.name, value: param.value }
+      
+      return { key: param.name, value: param.value, isEncrypted: param.isEncrypted }
     })
 
-    configWrapper.envLoader.paramsToSourceFile(params, config.outfile)
+    await envLoader.paramsToSourceFile(params, config.outfile ?? '.env')
     console.log(chalk.green(`Saved ${Object.keys(results).length} parameters to ${config.outfile}`))
   } else {
     console.log(chalk.red('No parameters found'))
@@ -103,24 +132,31 @@ async function saveParamsFile(config) {
   }
 }
 
-async function putToAWSFromFile(config) {
-  const { infile, env, service, overwrite, encrypt } = config
+async function putToAWSFromFile(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
+  const { env, service, overwrite, encrypt } = config
+  const infile = config?.infile || '.env'
   console.log(chalk.green(`Reading params from file: ${infile}`))
-  const params = await configWrapper.envLoader.readEnvFile(infile)
+  const params = await envLoader.readEnvFile(infile)
   params.forEach((param) => {
     param.canOverwrite = overwrite
-    param.isEncrypted = encrypt
+    param.isEncrypted = param.isEncrypted ?? encrypt
   })
-  console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/torc/${env}/${service}"`))
-  const results = await configWrapper.awsManager.setParametersByService(params, env, service)
-  console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/torc/${env}/${service}"`))
+  console.log(chalk.green(`Saving ${params.length} parameters to AWS for "/${env ?? ''}/${service ?? ''}"`))
+  const results = await awsManager.setParametersByService(params, env ?? '', service ?? '')
+  console.log(chalk.green(`Saved ${results.length} parameters to AWS for "/${env ?? ''}/${service ?? ''}"`))
 }
-async function exportAllParams(config) {
-  // console.log(config)
+
+async function exportAllParams(config: Options): Promise<void> {
+  if (config.basepath) {
+    awsManager.setBasePath(config.basepath)
+  }
   const rootFolder = config?.folder || './params'
   await fs.mkdir(rootFolder, { recursive: true })
-  let params = {}
-  const allParams = await configWrapper.awsManager.getAllOrgParams(true)
+  let params: { [key: string]: any } = {}
+  const allParams: { [key: string]: any } = await awsManager.getAllOrgParams(true)
 
   if (config?.env) {
     Object.keys(allParams).forEach((key) => {
@@ -158,7 +194,7 @@ async function exportAllParams(config) {
   }
  }
 
-async function promptForMissingOptions(options) {
+async function promptForMissingOptions(options: Options): Promise<Options> {
   let commandFunc = null
 
   const questions = []
@@ -193,6 +229,15 @@ async function promptForMissingOptions(options) {
           default: '',
         })
       }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: undefined,
+        })
+      }
       break
     }
     case 'saveParamsFile': {
@@ -211,7 +256,7 @@ async function promptForMissingOptions(options) {
           type: 'input',
           name: 'env',
           message: 'Environment: ',
-          default: 'dev',
+          default: undefined,
         })
       }
 
@@ -221,6 +266,15 @@ async function promptForMissingOptions(options) {
           name: 'service',
           message: 'Service: ',
           default: '',
+        })
+      }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: undefined,
         })
       }
       break
@@ -241,7 +295,7 @@ async function promptForMissingOptions(options) {
           type: 'input',
           name: 'env',
           message: 'Environment: ',
-          default: 'dev',
+          default: undefined,
         })
       }
 
@@ -251,6 +305,15 @@ async function promptForMissingOptions(options) {
           name: 'service',
           message: 'Service: ',
           default: '',
+        })
+      }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: undefined,
         })
       }
       break
@@ -263,6 +326,15 @@ async function promptForMissingOptions(options) {
           name: 'folder',
           message: 'Folder: ',
           default: './params',
+        })
+      }
+
+      if (!options.basepath) {
+        questions.push({
+          type: 'input',
+          name: 'basepath',
+          message: 'Base path (optional): ',
+          default: undefined,
         })
       }
       break
@@ -283,20 +355,17 @@ async function promptForMissingOptions(options) {
     source: options.source || answers.source,
     service: options.service || answers.service,
     env: options.env || answers.env,
+    basepath: options.basepath || answers.basepath,
     commandFunc
-  };
+  }
 }
 
-async function cli(args) {
+export async function cli(args: string[]): Promise<void> {
   console.log(chalk.green(`\n${pkg.name} v${pkg.version}`))
   let options = parseArgumentsIntoOptions(args)
   options = await promptForMissingOptions(options)
 
-  if (options) {
+  if (options && typeof options.commandFunc === 'function') {
     await options.commandFunc(options)
   }
-}
-
-module.exports = {
-  cli
 }
