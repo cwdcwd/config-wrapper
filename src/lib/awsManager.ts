@@ -198,7 +198,6 @@ export async function getServicesForEnvironment(env: string): Promise<{ [svc: st
       svcs[svc] = svcs[svc] ? svcs[svc] + 1 : 1
     }
 
-    params = await ssm.getParametersByPath(config).promise()
     nextToken = params.NextToken
     config.NextToken = nextToken
   } while (nextToken)
