@@ -168,7 +168,6 @@ export async function getEnvironments(): Promise<{ [env: string]: number }> {
       envs[env] = envs[env] ? envs[env] + 1 : 1
     }
 
-    params = await ssm.getParametersByPath(config).promise()
     nextToken = params.NextToken
     config.NextToken = nextToken
   } while (nextToken)
