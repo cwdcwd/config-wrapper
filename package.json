@@ -4,9 +4,9 @@
   "description": "config management wrapper",
   "main": "./dist/index.js",
   "bin": {
-    "@cwdcwd/config-wrapper": "bin/config-wrapper",
     "config-wrapper": "bin/config-wrapper"
   },
+  "files": [
   "files": [
     "dist",
     "bin"
