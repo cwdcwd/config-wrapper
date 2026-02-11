@@ -45,6 +45,6 @@
     "node": ">=v16.3.0"
   },
   "publishConfig": {
-    "@cwdcwd:registry": "https://npm.pkg.github.com"
+    "registry": "https://npm.pkg.github.com"
   }
 }
