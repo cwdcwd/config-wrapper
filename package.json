@@ -1,6 +1,6 @@
 {
   "name": "@cwdcwd/config-wrapper",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "config management wrapper",
   "main": "./dist/index.js",
   "bin": {
