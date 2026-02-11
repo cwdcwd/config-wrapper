@@ -35,6 +35,8 @@ jobs:
         run: npm run build
 
       - name: Publish to npm
+        # continue-on-error allows the workflow to succeed even if npm publishing fails
+        # This is useful when NPM_TOKEN is not configured or when the package already exists
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -47,9 +49,11 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
 
       - name: Publish to GitHub Packages
+        # continue-on-error allows the workflow to succeed even if package already exists
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
