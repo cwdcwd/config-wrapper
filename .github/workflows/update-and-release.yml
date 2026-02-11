@@ -1,33 +1,52 @@
-name: Release
+name: Release and Publish
+
 on:
   push:
-    branches:
-      - master
+    tags:
+      - '*.*.*'
+      - '*.*.*-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   release:
-    name: Release
+    name: Release and Publish
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Automatic GitHub Release
-        uses: justincy/github-action-npm-release@2.0.1
-        id: release
-      - uses: actions/setup-node@v1
-        if: steps.release.outputs.released == 'true'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          registry-url: 'https://npm.pkg.github.com'
+          node-version: '20'
+
       - name: Install dependencies
-        if: steps.release.outputs.released == 'true'
         run: npm ci
+
       - name: Build
-        if: steps.release.outputs.released == 'true'
         run: npm run build
-      - name: Publish
-        if: steps.release.outputs.released == 'true'
+
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Publish to GitHub Packages
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
