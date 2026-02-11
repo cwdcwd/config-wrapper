@@ -7,7 +7,7 @@ This module will:
 - store and recall env vars to AWS parameter store based on env and app tags
 
 ### Install
-`npm i -g @opentorc/config-wrapper`
+`npm i -g @cwdcwd/config-wrapper`
 
 ### CLI Usage
 `config-wrapper --help` 

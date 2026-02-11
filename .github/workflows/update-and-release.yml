@@ -20,6 +20,12 @@ jobs:
         if: steps.release.outputs.released == 'true'
         with:
           registry-url: 'https://npm.pkg.github.com'
+      - name: Install dependencies
+        if: steps.release.outputs.released == 'true'
+        run: npm ci
+      - name: Build
+        if: steps.release.outputs.released == 'true'
+        run: npm run build
       - name: Publish
         if: steps.release.outputs.released == 'true'
         run: npm publish

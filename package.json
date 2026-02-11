@@ -1,12 +1,16 @@
 {
-  "name": "@opentorc/config-wrapper",
+  "name": "@cwdcwd/config-wrapper",
   "version": "2.0.0",
   "description": "config management wrapper",
   "main": "./dist/index.js",
   "bin": {
-    "@opentorc/config-wrapper": "bin/config-wrapper",
     "config-wrapper": "bin/config-wrapper"
   },
+  "files": [
+  "files": [
+    "dist",
+    "bin"
+  ],
   "scripts": {
     "test": "jest --passWithNoTests",
     "clean": "tsc --build --clean",
@@ -41,6 +45,6 @@
     "node": ">=v16.3.0"
   },
   "publishConfig": {
-    "@opentorc:registry": "https://npm.pkg.github.com"
+    "registry": "https://npm.pkg.github.com"
   }
 }
