@@ -10,7 +10,6 @@ on:
 permissions:
   contents: write
   packages: write
-  id-token: write
 
 jobs:
   release:
@@ -26,7 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.pkg.github.com'
 
       - name: Install dependencies
         run: npm ci
@@ -34,26 +33,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish to npm
-        # continue-on-error allows the workflow to succeed even if npm publishing fails
-        # This is useful when NPM_TOKEN is not configured or when the package already exists
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        continue-on-error: true
-
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-
       - name: Publish to GitHub Packages
-        # continue-on-error allows the workflow to succeed even if package already exists
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
