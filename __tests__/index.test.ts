@@ -4,8 +4,8 @@ const envFile = './__tests__/.env'
 
 describe('envLoader', () => {
   const params = [
-    { key: 'key01', value: 'value01' },
-    { key: 'key02', value: 'value02' },
+    { key: 'key01', value: 'value01', isEncrypted: false },
+    { key: 'key02', value: 'value02', isEncrypted: false },
     { key: 'key03', value: 'value03', isEncrypted: true }
   ]
 
@@ -21,7 +21,9 @@ describe('envLoader', () => {
       for (let i = 0; i < aParams.length; i++) {
         const aLine = aParams[i].split('=')
         expect(aLine[0]).toEqual(sortedKeys[i].key)
-        expect(aLine[1]).toEqual(sortedKeys[i].value)
+        // Value portion may include '# encrypted' comment — compare only the value part
+        const valuePortion = aLine.slice(1).join('=').split('#')
+        expect(valuePortion[0].trim()).toEqual(sortedKeys[i].value)
       }
     })
   })
