@@ -2,6 +2,104 @@ import fs from 'fs/promises'
 import { envLoader, awsManager } from '../src/index'
 const envFile = './__tests__/.env'
 
+// Mock AWS SSM so tests run without real AWS credentials
+jest.mock('aws-sdk', () => {
+  // Store the params passed to each SSM method so .promise() can use them
+  let lastGetParamArgs: any = null;
+  let lastGetByPathArgs: any = null;
+  let lastPutParamArgs: any = null;
+
+  const mockSSM = {
+    getParameter: jest.fn().mockImplementation((...args: any[]) => {
+      lastGetParamArgs = args[0];
+      return { promise: () => mockSSM._resolveGetParameter() };
+    }),
+    getParametersByPath: jest.fn().mockImplementation((...args: any[]) => {
+      lastGetByPathArgs = args[0];
+      return { promise: () => mockSSM._resolveGetParametersByPath() };
+    }),
+    putParameter: jest.fn().mockImplementation((...args: any[]) => {
+      lastPutParamArgs = args[0];
+      return { promise: () => mockSSM._resolvePutParameter() };
+    }),
+    // Internal resolvers — will be configured in setupSSMMocks
+    _resolveGetParameter: jest.fn(),
+    _resolveGetParametersByPath: jest.fn(),
+    _resolvePutParameter: jest.fn(),
+    // Expose last captured args for assertions
+    _lastGetParamArgs: () => lastGetParamArgs,
+    _lastGetByPathArgs: () => lastGetByPathArgs,
+    _lastPutParamArgs: () => lastPutParamArgs,
+  };
+
+  return {
+    SSM: jest.fn().mockImplementation(() => mockSSM),
+    _mockSSM: mockSSM,
+  };
+});
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { _mockSSM } = require('aws-sdk') as any;
+
+const testBasePath = 'testorg'
+
+function makeSSMParam(name: string, value: string, type: string = 'String') {
+  return {
+    Name: `/${testBasePath}/test/config-wrapper/${name}`,
+    Value: value,
+    Version: 1,
+    LastModifiedDate: new Date(),
+    Type: type,
+  };
+}
+
+const ssmParams = [
+  makeSSMParam('testParam01', 'value01'),
+  makeSSMParam('testParam02', 'value02'),
+  makeSSMParam('secretParam01', 'secretValue01', 'SecureString'),
+  makeSSMParam('testParam03', 'value03'),
+];
+
+function setupSSMMocks() {
+  awsManager.setBasePath(testBasePath)
+
+  _mockSSM._resolveGetParameter.mockImplementation(() => {
+    const params = _mockSSM._lastGetParamArgs();
+    const found = ssmParams.find(p => p.Name === params.Name);
+    if (found) {
+      return Promise.resolve({ Parameter: found });
+    }
+    return Promise.reject(new Error(`Parameter not found: ${params.Name}`));
+  });
+
+  _mockSSM._resolveGetParametersByPath.mockImplementation(() => {
+    const params = _mockSSM._lastGetByPathArgs();
+    const path = params.Path;
+    // Normalize: ensure leading / for consistent matching
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    let filtered: any[];
+
+    if (normalizedPath === `/${testBasePath}` || normalizedPath === '/') {
+      filtered = ssmParams;
+    } else {
+      filtered = ssmParams.filter(p => p.Name.startsWith(normalizedPath));
+    }
+
+    return Promise.resolve({ Parameters: filtered, NextToken: undefined });
+  });
+
+  _mockSSM._resolvePutParameter.mockResolvedValue({
+    Tier: 'Standard',
+    Version: 1,
+  });
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  awsManager.clearCache();
+  setupSSMMocks();
+});
+
 describe('envLoader', () => {
   const params = [
     { key: 'key01', value: 'value01', isEncrypted: false },
@@ -194,12 +292,12 @@ describe('awsManager', () => {
   const aParams = [
     { key: 'testParam01', value: 'value01', canOverwrite: true },
     { key: 'testParam02', value: 'value02' },
-    { key: 'secretParam01', value: 'secretValue01', isEncrypted: true }
+    { key: 'secretParam01', value: 'secretValue01', isEncrypted: true },
+    { key: 'testParam03', value: 'value03' },
   ]
 
   describe('setParameter', () => {
     it('should set a parameter', async () => {
-      aParams.push({ key: 'testParam03', value: 'value03' })
       const param = await awsManager.setParameter(aParams[3], env, service, false, true)
       expect(param.Tier).toEqual('Standard')
       expect(param.Version).toBeGreaterThanOrEqual(1)
@@ -230,7 +328,6 @@ describe('awsManager', () => {
   describe('getParametersByService', () => {
     it('should get all the parameters by env and service', async () => {
       const params = await awsManager.getParametersByService(env, service, true)
-      console.log(params)
       for (let i = 0; i < aParams.length; i++) {
         const found = params[aParams[i].key]
 
@@ -243,28 +340,25 @@ describe('awsManager', () => {
   describe('getEnvironments', () => {
     it('should get all the environments', async () => {
       const envs = await awsManager.getEnvironments()
-      console.log(envs)
       expect(envs.test).toBeDefined()
-      expect(envs.test).toEqual(4)
+      expect(envs.test).toEqual(ssmParams.length)
     })
   })
 
   describe('getServicesForEnvironment', () => {
     it('should get all the services in an environment', async () => {
       const svcs = await awsManager.getServicesForEnvironment('test')
-      console.log(svcs)
       expect(svcs['config-wrapper']).toBeDefined()
-      expect(svcs['config-wrapper']).toEqual(4)
+      expect(svcs['config-wrapper']).toEqual(ssmParams.length)
     })
   })
 
   describe('getAllOrgParams', () => {
     it('should get all the org parameters', async () => {
       const params = await awsManager.getAllOrgParams()
-      console.log(params)
       expect(params.test).toBeDefined()
       expect(params.test['config-wrapper']).toBeDefined()
-      expect(Object.keys(params.test['config-wrapper'])).toHaveLength(4)
+      expect(Object.keys(params.test['config-wrapper'])).toHaveLength(ssmParams.length)
       expect(params.test['config-wrapper']).toHaveProperty('testParam01')
       expect(params.test['config-wrapper']).toHaveProperty('secretParam01')
     })

@@ -11,6 +11,10 @@ export function setBasePath(path: string) {
 
 const cachedParams: { [key: string]: any } = {}
 
+export function clearCache(): void {
+  Object.keys(cachedParams).forEach(key => delete cachedParams[key])
+}
+
 function initializeSSM(): void {
   if (!ssm) {
     ssm = new AWS.SSM();
