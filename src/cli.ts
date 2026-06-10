@@ -179,14 +179,12 @@ async function exportAllParams(config: Options): Promise<void> {
 
     for (let j = 0; j < services.length; ++j) { 
       const service = services[j]
-      const aEnvVars = []
-      const vars = Object.keys(params[env][service])
-
-      for (let k = 0; k < vars.length; ++k) {
-        const key = vars[k]
+      const serviceParams: envLoader.EnvParam[] = Object.keys(params[env][service]).map((key) => {
         const param = params[env][service][key]
-        aEnvVars.push(`${key}=${param.value}`)
-      }
+        return { key, value: param.value, isEncrypted: param.isEncrypted }
+      })
+      const sortedServiceParams = envLoader.sortParams(serviceParams)
+      const aEnvVars = sortedServiceParams.map((param) => `${param.key}=${param.value}`)
 
       console.log(`writing ${aEnvVars.length} params for ${env}/${service} to ${rootFolder}/${env}/${service}.env`)
       await fs.writeFile(`${rootFolder}/${env}/${service}.env`, aEnvVars.join('\n'))
