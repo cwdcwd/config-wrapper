@@ -10,16 +10,18 @@ describe('envLoader', () => {
   ]
 
   describe('paramsToSourceFile', () => {
-    it('should save array to file', async () => {
+    it('should save array to file in sorted order', async () => {
       const parmsToString = await envLoader.paramsToSourceFile(params, envFile)
       const fileData = await fs.readFile(envFile, 'utf8')
       expect(fileData).toEqual(parmsToString)
       const aParams = fileData.split('\n')
 
+      // Assert alphabetical order by key
+      const sortedKeys = [...params].sort((a, b) => a.key.localeCompare(b.key, 'en'))
       for (let i = 0; i < aParams.length; i++) {
         const aLine = aParams[i].split('=')
-        expect(aLine[0]).toEqual(params[i].key)
-        expect(aLine[1]).toEqual(params[i].value)
+        expect(aLine[0]).toEqual(sortedKeys[i].key)
+        expect(aLine[1]).toEqual(sortedKeys[i].value)
       }
     })
   })
@@ -81,6 +83,95 @@ describe('envLoader', () => {
       for (let i = 0; i < testParams2.length; i++) {
         expect(process.env[testParams2[i].key]).toEqual(testParams2[i].value)
       }
+    })
+  })
+
+  describe('sortParams', () => {
+    it('should sort params alphabetically by key', () => {
+      const unsortedParams = [
+        { key: 'ZEBRA', value: 'z' },
+        { key: 'ALPHA', value: 'a' },
+        { key: 'MIDDLE', value: 'm' }
+      ]
+      const sorted = envLoader.sortParams(unsortedParams)
+      expect(sorted[0].key).toEqual('ALPHA')
+      expect(sorted[1].key).toEqual('MIDDLE')
+      expect(sorted[2].key).toEqual('ZEBRA')
+    })
+
+    it('should sort by value as secondary criterion when keys are equal', () => {
+      const duplicateKeyParams = [
+        { key: 'SAME', value: 'charlie' },
+        { key: 'SAME', value: 'alpha' },
+        { key: 'SAME', value: 'bravo' }
+      ]
+      const sorted = envLoader.sortParams(duplicateKeyParams)
+      expect(sorted[0].value).toEqual('alpha')
+      expect(sorted[1].value).toEqual('bravo')
+      expect(sorted[2].value).toEqual('charlie')
+    })
+
+    it('should not mutate the original array', () => {
+      const original = [
+        { key: 'Z', value: 'z' },
+        { key: 'A', value: 'a' }
+      ]
+      const sorted = envLoader.sortParams(original)
+      expect(original[0].key).toEqual('Z')
+      expect(sorted[0].key).toEqual('A')
+    })
+
+    it('should preserve isEncrypted flag after sorting', () => {
+      const mixedParams = [
+        { key: 'Z_KEY', value: 'z', isEncrypted: true },
+        { key: 'A_KEY', value: 'a' },
+        { key: 'M_KEY', value: 'm', isEncrypted: true }
+      ]
+      const sorted = envLoader.sortParams(mixedParams)
+      expect(sorted[0]).toEqual({ key: 'A_KEY', value: 'a' })
+      expect(sorted[1]).toEqual({ key: 'M_KEY', value: 'm', isEncrypted: true })
+      expect(sorted[2]).toEqual({ key: 'Z_KEY', value: 'z', isEncrypted: true })
+    })
+  })
+
+  describe('paramsToSourceFile sorting', () => {
+    it('should sort params alphabetically by key before writing', async () => {
+      const unsortedParams = [
+        { key: 'ZEBRA', value: 'z' },
+        { key: 'ALPHA', value: 'a' },
+        { key: 'MIDDLE', value: 'm' }
+      ]
+      const result = await envLoader.paramsToSourceFile(unsortedParams, envFile)
+      const lines = result.split('\n')
+      expect(lines[0]).toEqual('ALPHA=a')
+      expect(lines[1]).toEqual('MIDDLE=m')
+      expect(lines[2]).toEqual('ZEBRA=z')
+    })
+
+    it('should sort by value as secondary criterion when keys are equal', async () => {
+      const duplicateKeyParams = [
+        { key: 'SAME', value: 'charlie' },
+        { key: 'SAME', value: 'alpha' },
+        { key: 'SAME', value: 'bravo' }
+      ]
+      const result = await envLoader.paramsToSourceFile(duplicateKeyParams, envFile)
+      const lines = result.split('\n')
+      expect(lines[0]).toEqual('SAME=alpha')
+      expect(lines[1]).toEqual('SAME=bravo')
+      expect(lines[2]).toEqual('SAME=charlie')
+    })
+
+    it('should preserve isEncrypted flag after sorting', async () => {
+      const mixedParams = [
+        { key: 'Z_KEY', value: 'z', isEncrypted: true },
+        { key: 'A_KEY', value: 'a' },
+        { key: 'M_KEY', value: 'm', isEncrypted: true }
+      ]
+      const result = await envLoader.paramsToSourceFile(mixedParams, envFile)
+      const lines = result.split('\n')
+      expect(lines[0]).toEqual('A_KEY=a')
+      expect(lines[1]).toEqual('M_KEY=m # encrypted')
+      expect(lines[2]).toEqual('Z_KEY=z # encrypted')
     })
   })
 

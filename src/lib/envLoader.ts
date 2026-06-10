@@ -84,10 +84,15 @@ export async function loadFileIntoEnv(filename: string): Promise<void> {
   loadParamsIntoEnv(params)
 }
 
+export function sortParams(params: EnvParam[]): EnvParam[] {
+  return [...params].sort((a, b) => a.key.localeCompare(b.key, 'en') || a.value.localeCompare(b.value, 'en'))
+}
+
 export async function paramsToSourceFile(params: EnvParam[], filename: string): Promise<string> {
+  const sortedParams = sortParams(params)
   const aParams: string[] = []
 
-  params.forEach((param) => {
+  sortedParams.forEach((param) => {
     aParams.push(`${param.key}=${param.value}${param.isEncrypted ? ' # encrypted' : ''}`)
   })
 
